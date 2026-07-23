@@ -1,15 +1,6 @@
-import enum
-from sqlalchemy import Column, Integer, String, Float, DateTime, Enum, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, func
 from sqlalchemy.orm import relationship
-from datetime import datetime
 from app.database import Base
-
-
-class UserRole(str, enum.Enum):
-    ADMIN = "admin"
-    EDITOR = "editor"
-    GUEST = "guest"
-
 
 class User(Base):
     __tablename__ = "users"
@@ -17,17 +8,10 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
-    role = Column(Enum(UserRole), default=UserRole.EDITOR)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    role = Column(String, default="editor")  # admin, editor, guest
+    hashed_password = Column(String, nullable=False)  # <-- NUEVO CAMPO ENCRIPTADO
 
-    transactions = relationship("Transaction", back_populates="user")
-
-
-class TransactionType(str, enum.Enum):
-    INCOME = "ingreso"
-    FIXED_EXPENSE = "gasto_fijo"
-    WEEKLY_EXPENSE = "gasto_semanal"
-    EXTRA_EXPENSE = "gasto_extra"
+    transactions = relationship("Transaction", back_populates="owner")
 
 
 class Transaction(Base):
@@ -36,8 +20,8 @@ class Transaction(Base):
     id = Column(Integer, primary_key=True, index=True)
     concept = Column(String, nullable=False)
     amount = Column(Float, nullable=False)
-    type = Column(Enum(TransactionType), nullable=False)
-    date = Column(DateTime, default=datetime.utcnow)
-
+    type = Column(String, nullable=False)  # ingreso, gasto_fijo, gasto_semanal, gasto_extra
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     user_id = Column(Integer, ForeignKey("users.id"))
-    user = relationship("User", back_populates="transactions")
+
+    owner = relationship("User", back_populates="transactions")

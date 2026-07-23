@@ -1,7 +1,8 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-DATABASE_URL = "postgresql://admin_finanzas:MiPasswordSuperSegura123@localhost:5432/finance_db"
+# Configuración con IP explícita 127.0.0.1 y credenciales/DB del proyecto LifeHub
+DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:5432/lifehub_db"
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

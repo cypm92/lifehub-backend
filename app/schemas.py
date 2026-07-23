@@ -1,37 +1,47 @@
 from pydantic import BaseModel, EmailStr
-from datetime import datetime
 from typing import Optional
-from app.models import UserRole, TransactionType
+from datetime import datetime
 
-# --- ESQUEMAS DE USUARIO ---
+# --- SCHEMAS DE USUARIO ---
 class UserBase(BaseModel):
     name: str
-    email: str
-    role: UserRole = UserRole.EDITOR
+    email: EmailStr
+    role: str = "editor"
 
 class UserCreate(UserBase):
-    pass
+    password: str  # <-- Requerido al crear usuario
 
 class UserResponse(UserBase):
     id: int
-    created_at: datetime
 
     class Config:
         from_attributes = True
 
-# --- ESQUEMAS DE TRANSACCIONES (Gastos/Ingresos) ---
+
+# --- SCHEMAS DE AUTENTICACIÓN ---
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+
+
+# --- SCHEMAS DE TRANSACCIONES ---
 class TransactionBase(BaseModel):
     concept: str
     amount: float
-    type: TransactionType
-    user_id: int
+    type: str
 
 class TransactionCreate(TransactionBase):
-    pass
+    user_id: int
 
 class TransactionResponse(TransactionBase):
     id: int
-    date: datetime
+    user_id: int
+    created_at: datetime
 
     class Config:
         from_attributes = True

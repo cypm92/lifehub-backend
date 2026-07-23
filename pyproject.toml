@@ -11,6 +11,10 @@ fastapi = "^0.139.2"
 uvicorn = "^0.51.0"
 sqlalchemy = "^2.0.51"
 psycopg2-binary = "^2.9.12"
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+pyjwt = "^2.13.0"
+bcrypt = "^5.0.0"
+email-validator = "^2.3.0"
 
 [build-system]
 requires = ["poetry-core"]
