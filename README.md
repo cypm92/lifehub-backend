@@ -21,15 +21,17 @@ Servidor RESTful central para la plataforma **LifeHub**, diseñado para la gesti
 1. **Iniciar Base de Datos en Docker:**
    ```bash
    docker-compose up -d
-   
+   ```
+
 2. **Instalar dependencias con Poetry:**
    ```bash
    poetry install
-   
+   ```
+
 3. **Ejecutar el servidor de desarrollo:**
    ```bash
    python -m poetry run uvicorn app.main:app --reload
-   
-4. **Documentación interactiva (Swagger UI):**
+   ```
 
-     Accede a http://127.0.0.1:8000/docs desde tu navegador.
+4. **Documentación interactiva (Swagger UI):**
+   Accede a `http://127.0.0.1:8000/docs` desde tu navegador.
