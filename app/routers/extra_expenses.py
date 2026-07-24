@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app import models, schemas, security
@@ -18,9 +19,8 @@ def validate_month(month_code: str) -> None:
         raise HTTPException(status_code=422, detail="El mes debe tener el formato YYYY-MM") from error
 
 
-def validate_expense_date(expense_date, month_code: str) -> None:
-    if expense_date.strftime("%Y-%m") != month_code:
-        raise HTTPException(status_code=422, detail="La fecha del gasto debe pertenecer al mes seleccionado")
+def month_code_for_date(expense_date) -> str:
+    return expense_date.strftime("%Y-%m")
 
 
 def category_for_user(category_id: int, user_id: int, db: Session) -> models.ExtraExpenseCategory:
@@ -84,24 +84,31 @@ def delete_category(category_id: int, db: Session = Depends(get_db), current_use
 
 
 @router.get("/{month_code}", response_model=list[schemas.ExtraExpenseResponse])
-def get_expenses(month_code: str, db: Session = Depends(get_db), current_user: models.User = Depends(security.get_current_user)):
+def get_expenses(month_code: str, include_scheduled: bool = False, db: Session = Depends(get_db), current_user: models.User = Depends(security.get_current_user)):
     validate_month(month_code)
+    month_filter = (
+        or_(
+            models.ExtraExpense.month_code == month_code,
+            models.ExtraExpense.month_code > month_code,
+        )
+        if include_scheduled
+        else models.ExtraExpense.month_code == month_code
+    )
     rows = db.query(models.ExtraExpense).filter(
-        models.ExtraExpense.month_code == month_code,
+        month_filter,
         models.ExtraExpense.user_id == current_user.id,
-    ).order_by(models.ExtraExpense.expense_date.desc(), models.ExtraExpense.id.desc()).all()
+    ).order_by(models.ExtraExpense.expense_date.asc(), models.ExtraExpense.id.asc()).all()
     return [serialize(row) for row in rows]
 
 
 @router.post("", response_model=schemas.ExtraExpenseResponse, status_code=status.HTTP_201_CREATED)
 def create_expense(data: schemas.ExtraExpenseCreate, month_code: str, db: Session = Depends(get_db), current_user: models.User = Depends(security.get_current_user)):
     validate_month(month_code)
-    validate_expense_date(data.expense_date, month_code)
     if data.category_id is not None:
         category_for_user(data.category_id, current_user.id, db)
     expense = models.ExtraExpense(
         user_id=current_user.id,
-        month_code=month_code,
+        month_code=month_code_for_date(data.expense_date),
         status="Pagado" if data.expense_date <= datetime.now().date() else "Pendiente",
         **data.model_dump(),
     )
@@ -114,7 +121,6 @@ def update_expense(expense_id: int, data: schemas.ExtraExpenseUpdate, db: Sessio
     expense = db.query(models.ExtraExpense).filter(models.ExtraExpense.id == expense_id, models.ExtraExpense.user_id == current_user.id).first()
     if not expense:
         raise HTTPException(status_code=404, detail="Gasto extra no encontrado")
-    validate_expense_date(data.expense_date, expense.month_code)
     if data.category_id is not None:
         category_for_user(data.category_id, current_user.id, db)
     changes = data.model_dump(exclude_none=True)
@@ -122,6 +128,8 @@ def update_expense(expense_id: int, data: schemas.ExtraExpenseUpdate, db: Sessio
         changes["status"] = "Pagado" if changes["expense_date"] <= datetime.now().date() else "Pendiente"
     for field, value in changes.items():
         setattr(expense, field, value)
+    if "expense_date" in changes:
+        expense.month_code = month_code_for_date(changes["expense_date"])
     db.commit(); db.refresh(expense)
     return serialize(expense)
 

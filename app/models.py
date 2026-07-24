@@ -74,6 +74,7 @@ class WeeklyExpense(Base):
     month_code = Column(String, index=True)  # Ej: "2026-07"
     week_number = Column(Integer)  # 1, 2, 3, 4, 5
     week_date_label = Column(String)  # Ej: "Viernes 03 Julio"
+    recharge_date = Column(Date, nullable=True, index=True)
     category_name = Column(String)  # Gasolina, Supermercado, Ocio
     allocated_amount = Column(Float, default=0.0)  # Presupuestado
     status = Column(String, default="Esperando")  # Pagado, Parado, Esperando
@@ -87,6 +88,7 @@ class WeeklyExpenseCategory(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
     weekly_amount = Column(Float, nullable=False, default=0.0)
+    recharge_weekday = Column(Integer, nullable=False, default=4)  # Lunes=0 ... Viernes=4
     is_active = Column(Boolean, nullable=False, default=True)
 
     user = relationship("User")

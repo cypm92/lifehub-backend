@@ -122,6 +122,7 @@ class WeeklyExpenseBase(BaseModel):
     category_name: str
     allocated_amount: float
     status: str
+    recharge_date: Optional[date] = None
 
 class WeeklyExpenseCreate(WeeklyExpenseBase):
     pass
@@ -141,11 +142,13 @@ class UserUpdate(BaseModel):
 class WeeklyExpenseCategoryCreate(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     weekly_amount: float = Field(ge=0)
+    recharge_weekday: int = Field(default=4, ge=0, le=6)
 
 
 class WeeklyExpenseCategoryUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=60)
     weekly_amount: Optional[float] = Field(default=None, ge=0)
+    recharge_weekday: Optional[int] = Field(default=None, ge=0, le=6)
 
 
 class WeeklyExpenseCategoryResponse(WeeklyExpenseCategoryCreate):

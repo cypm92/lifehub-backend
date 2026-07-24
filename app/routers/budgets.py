@@ -86,7 +86,11 @@ def get_weekly_categories(db: Session = Depends(get_db), current_user: models.Us
 @weekly_categories_router.post("", response_model=schemas.WeeklyExpenseCategoryResponse)
 def create_weekly_category(data: schemas.WeeklyExpenseCategoryCreate, month_code: str,
                            db: Session = Depends(get_db), current_user: models.User = Depends(security.get_current_user)):
-    category = models.WeeklyExpenseCategory(user_id=current_user.id, **data.model_dump())
+    payload = data.model_dump()
+    existing_categories = weekly_expense_service.get_weekly_categories(current_user, db)
+    if existing_categories:
+        payload["recharge_weekday"] = existing_categories[0].recharge_weekday
+    category = models.WeeklyExpenseCategory(user_id=current_user.id, **payload)
     db.add(category)
     try:
         db.commit()
@@ -105,15 +109,31 @@ def update_weekly_category(category_id: int, data: schemas.WeeklyExpenseCategory
         models.WeeklyExpenseCategory.id == category_id, models.WeeklyExpenseCategory.user_id == current_user.id).first()
     if not category:
         raise HTTPException(status_code=404, detail="Categoría semanal no encontrada")
-    for field, value in data.model_dump(exclude_unset=True).items():
+    changes = data.model_dump(exclude_unset=True)
+    recharge_day_changed = "recharge_weekday" in changes and changes["recharge_weekday"] != category.recharge_weekday
+    for field, value in changes.items():
         setattr(category, field, value)
-    db.query(models.WeeklyExpense).filter(
-        models.WeeklyExpense.weekly_category_id == category.id,
+    pending_expenses = db.query(models.WeeklyExpense).filter(
         models.WeeklyExpense.month_code == month_code,
         models.WeeklyExpense.user_id == current_user.id,
         models.WeeklyExpense.status != "Pagado",
-    ).update({"category_name": category.name, "allocated_amount": category.weekly_amount}, synchronize_session=False)
+    )
+    if recharge_day_changed:
+        db.query(models.WeeklyExpenseCategory).filter(
+            models.WeeklyExpenseCategory.user_id == current_user.id,
+            models.WeeklyExpenseCategory.is_active.is_(True),
+        ).update({"recharge_weekday": category.recharge_weekday}, synchronize_session=False)
+        pending_expenses.delete(synchronize_session=False)
+    else:
+        db.query(models.WeeklyExpense).filter(
+            models.WeeklyExpense.weekly_category_id == category.id,
+            models.WeeklyExpense.month_code == month_code,
+            models.WeeklyExpense.user_id == current_user.id,
+            models.WeeklyExpense.status != "Pagado",
+        ).update({"category_name": category.name, "allocated_amount": category.weekly_amount}, synchronize_session=False)
     db.commit()
+    if recharge_day_changed:
+        weekly_expense_service.generate_monthly_weeks(month_code, current_user, db)
     db.refresh(category)
     return category
 
