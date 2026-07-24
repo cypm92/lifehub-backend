@@ -133,6 +133,11 @@ class WeeklyExpenseResponse(WeeklyExpenseBase):
         from_attributes = True
 
 
+class UserUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    email: EmailStr
+
+
 class WeeklyExpenseCategoryCreate(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     weekly_amount: float = Field(ge=0)

@@ -28,10 +28,12 @@ class MonthlyBudget(Base):
     __tablename__ = "monthly_budgets"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     month_code = Column(String, nullable=False, index=True)  # Formato: "YYYY-MM" (ej. "2026-07")
     expected_income = Column(Float, default=0.0)
 
     items = relationship("BudgetItem", back_populates="monthly_budget", cascade="all, delete-orphan")
+    user = relationship("User")
 
 
 class BudgetItem(Base):

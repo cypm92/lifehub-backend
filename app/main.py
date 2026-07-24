@@ -101,6 +101,21 @@ def get_users(db: Session = Depends(get_db), current_user: models.User = Depends
     return db.query(models.User).all()
 
 
+@app.get("/auth/me", response_model=schemas.UserResponse)
+def get_current_profile(current_user: models.User = Depends(security.get_current_user)):
+    return current_user
+
+
+@app.patch("/auth/me", response_model=schemas.UserResponse)
+def update_current_profile(data: schemas.UserUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(security.get_current_user)):
+    duplicate = db.query(models.User).filter(models.User.email == data.email, models.User.id != current_user.id).first()
+    if duplicate:
+        raise HTTPException(status_code=400, detail="El email ya está en uso")
+    current_user.name, current_user.email = data.name, data.email
+    db.commit(); db.refresh(current_user)
+    return current_user
+
+
 # ---------------------------------------------------------
 # CATEGORIES
 # ---------------------------------------------------------
@@ -127,9 +142,9 @@ def get_budget_summary(month_code: str, db: Session = Depends(get_db),
                        current_user: models.User = Depends(security.get_current_user)):
     """Obtiene el resumen detallado del presupuesto para un mes (ej. '2026-07')"""
     # 1. Obtener o crear el presupuesto del mes
-    budget = db.query(models.MonthlyBudget).filter(models.MonthlyBudget.month_code == month_code).first()
+    budget = db.query(models.MonthlyBudget).filter(models.MonthlyBudget.month_code == month_code, models.MonthlyBudget.user_id == current_user.id).first()
     if not budget:
-        budget = models.MonthlyBudget(month_code=month_code, expected_income=0.0)
+        budget = models.MonthlyBudget(user_id=current_user.id, month_code=month_code, expected_income=0.0)
         db.add(budget)
         db.commit()
         db.refresh(budget)
@@ -154,7 +169,10 @@ def get_budget_summary(month_code: str, db: Session = Depends(get_db),
         budget_items[category_id] = max(budget_items.get(category_id, 0.0), fixed_total)
 
     # 3. Calcular gastos e ingresos reales
-    transactions = db.query(models.Transaction).filter(models.Transaction.month_code == month_code).all()
+    transactions = db.query(models.Transaction).filter(
+        models.Transaction.month_code == month_code,
+        models.Transaction.user_id == current_user.id,
+    ).all()
 
     actual_spent_by_cat = {}
     actual_income = 0.0
@@ -218,9 +236,9 @@ def get_budget_summary(month_code: str, db: Session = Depends(get_db),
 @app.post("/budgets/set-income")
 def set_expected_income(data: schemas.BudgetSetIncome, db: Session = Depends(get_db),
                         current_user: models.User = Depends(security.get_current_user)):
-    budget = db.query(models.MonthlyBudget).filter(models.MonthlyBudget.month_code == data.month_code).first()
+    budget = db.query(models.MonthlyBudget).filter(models.MonthlyBudget.month_code == data.month_code, models.MonthlyBudget.user_id == current_user.id).first()
     if not budget:
-        budget = models.MonthlyBudget(month_code=data.month_code, expected_income=data.expected_income)
+        budget = models.MonthlyBudget(user_id=current_user.id, month_code=data.month_code, expected_income=data.expected_income)
         db.add(budget)
     else:
         budget.expected_income = data.expected_income
@@ -231,9 +249,9 @@ def set_expected_income(data: schemas.BudgetSetIncome, db: Session = Depends(get
 @app.post("/budgets/set-item")
 def set_budget_item(data: schemas.BudgetItemCreate, month_code: str, db: Session = Depends(get_db),
                     current_user: models.User = Depends(security.get_current_user)):
-    budget = db.query(models.MonthlyBudget).filter(models.MonthlyBudget.month_code == month_code).first()
+    budget = db.query(models.MonthlyBudget).filter(models.MonthlyBudget.month_code == month_code, models.MonthlyBudget.user_id == current_user.id).first()
     if not budget:
-        budget = models.MonthlyBudget(month_code=month_code, expected_income=0.0)
+        budget = models.MonthlyBudget(user_id=current_user.id, month_code=month_code, expected_income=0.0)
         db.add(budget)
         db.commit()
         db.refresh(budget)
@@ -263,13 +281,17 @@ def set_budget_item(data: schemas.BudgetItemCreate, month_code: str, db: Session
 @app.get("/transactions/{month_code}", response_model=List[schemas.TransactionResponse])
 def get_transactions_by_month(month_code: str, db: Session = Depends(get_db),
                               current_user: models.User = Depends(security.get_current_user)):
-    return db.query(models.Transaction).filter(models.Transaction.month_code == month_code).all()
+    return db.query(models.Transaction).filter(
+        models.Transaction.month_code == month_code,
+        models.Transaction.user_id == current_user.id,
+    ).all()
 
 
 @app.post("/transactions", response_model=schemas.TransactionResponse)
 def create_transaction(transaction: schemas.TransactionCreate, db: Session = Depends(get_db),
                        current_user: models.User = Depends(security.get_current_user)):
-    new_trans = models.Transaction(**transaction.model_dump())
+    payload = transaction.model_dump(exclude={"user_id"})
+    new_trans = models.Transaction(**payload, user_id=current_user.id)
     db.add(new_trans)
     db.commit()
     db.refresh(new_trans)
@@ -279,7 +301,10 @@ def create_transaction(transaction: schemas.TransactionCreate, db: Session = Dep
 @app.put("/transactions/{transaction_id}", response_model=schemas.TransactionResponse)
 def update_transaction(transaction_id: int, transaction: schemas.TransactionUpdate, db: Session = Depends(get_db),
                        current_user: models.User = Depends(security.get_current_user)):
-    existing = db.query(models.Transaction).filter(models.Transaction.id == transaction_id).first()
+    existing = db.query(models.Transaction).filter(
+        models.Transaction.id == transaction_id,
+        models.Transaction.user_id == current_user.id,
+    ).first()
     if not existing:
         raise HTTPException(status_code=404, detail="Movimiento no encontrado")
     existing.concept = transaction.concept
@@ -292,7 +317,10 @@ def update_transaction(transaction_id: int, transaction: schemas.TransactionUpda
 @app.delete("/transactions/{transaction_id}", status_code=204)
 def delete_transaction(transaction_id: int, db: Session = Depends(get_db),
                        current_user: models.User = Depends(security.get_current_user)):
-    existing = db.query(models.Transaction).filter(models.Transaction.id == transaction_id).first()
+    existing = db.query(models.Transaction).filter(
+        models.Transaction.id == transaction_id,
+        models.Transaction.user_id == current_user.id,
+    ).first()
     if not existing:
         raise HTTPException(status_code=404, detail="Movimiento no encontrado")
     db.delete(existing)

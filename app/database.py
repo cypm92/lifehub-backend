@@ -27,6 +27,8 @@ def ensure_schema_compatibility() -> None:
         add_column_if_missing("weekly_expenses", "weekly_category_id", "INTEGER")
         add_column_if_missing("extra_expenses", "description", "VARCHAR NOT NULL DEFAULT ''")
         add_column_if_missing("extra_expenses", "status", "VARCHAR NOT NULL DEFAULT 'Pagado'")
+        add_column_if_missing("monthly_budgets", "user_id", "INTEGER")
+        connection.execute(text("UPDATE monthly_budgets SET user_id = (SELECT MIN(id) FROM users) WHERE user_id IS NULL"))
 
 
 def get_db():
