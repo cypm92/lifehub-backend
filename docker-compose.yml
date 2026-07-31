@@ -1,3 +1,5 @@
+name: lifehub
+
 services:
   postgres_db:
     image: postgres:16-alpine
@@ -41,6 +43,8 @@ services:
       context: ../frontend
     container_name: lifehub_frontend
     restart: unless-stopped
+    environment:
+      VITE_API_URL: /api
     ports:
       - "5173:5173"
     volumes:
@@ -51,4 +55,6 @@ services:
 
 volumes:
   postgres_data:
+    name: lifehub_postgres_data
   frontend_node_modules:
+    name: lifehub_frontend_node_modules

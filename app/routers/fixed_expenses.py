@@ -33,7 +33,11 @@ def ensure_month_entries(month_code: str, current_user: models.User, db: Session
     parse_month(month_code)
     active_expenses = (
         db.query(models.FixedExpense)
-        .filter(models.FixedExpense.user_id == current_user.id, models.FixedExpense.is_active.is_(True))
+        .filter(
+            models.FixedExpense.user_id == current_user.id,
+            models.FixedExpense.is_active.is_(True),
+            models.FixedExpense.starts_month <= month_code,
+        )
         .all()
     )
     existing_ids = {
@@ -177,13 +181,14 @@ def get_fixed_expenses(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user),
 ):
-    ensure_month_entries(month_code, current_user, db)
+    parse_month(month_code)
     entries = (
         db.query(models.FixedExpenseMonth)
         .join(models.FixedExpense)
         .filter(
             models.FixedExpense.user_id == current_user.id,
             models.FixedExpenseMonth.month_code == month_code,
+            models.FixedExpense.starts_month <= month_code,
         )
         .order_by(models.FixedExpenseMonth.due_day, models.FixedExpenseMonth.id)
         .all()
@@ -213,6 +218,7 @@ def create_fixed_expense(
         **data.model_dump(exclude={"category_id"}),
         category_id=category_id,
         user_id=current_user.id,
+        starts_month=month_code,
     )
     db.add(expense)
     db.commit()

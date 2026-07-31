@@ -35,6 +35,32 @@ def format_period_label(start_date, end_date) -> str:
     )
 
 
+def refresh_cycle_metadata(month_code: str, current_user: models.User, db: Session) -> None:
+    """Recalcula el orden y los rangos de todos los ciclos, incluidos los manuales."""
+    expenses = (
+        db.query(models.WeeklyExpense)
+        .filter(
+            models.WeeklyExpense.month_code == month_code,
+            models.WeeklyExpense.user_id == current_user.id,
+            models.WeeklyExpense.recharge_date.is_not(None),
+            models.WeeklyExpense.is_excluded_cycle.is_(False),
+        )
+        .all()
+    )
+    dates = sorted({expense.recharge_date for expense in expenses})
+    for index, recharge_date in enumerate(dates):
+        cycle_expenses = [expense for expense in expenses if expense.recharge_date == recharge_date]
+        if index + 1 < len(dates):
+            period_end = dates[index + 1] - timedelta(days=1)
+        else:
+            # Un período semanal siempre dura siete días completos. El último
+            # puede terminar en el mes siguiente (por ejemplo, vie. 28/08 - jue. 03/09).
+            period_end = recharge_date + timedelta(days=6)
+        for expense in cycle_expenses:
+            expense.week_number = index + 1
+            expense.week_date_label = format_period_label(recharge_date, period_end)
+
+
 def generate_monthly_weeks(month_code: str, current_user: models.User, db: Session) -> None:
     """Create one budget cycle for every configured recharge day in the month."""
     year, month = parse_month(month_code)
@@ -132,6 +158,74 @@ def generate_monthly_weeks(month_code: str, current_user: models.User, db: Sessi
                 allocated_amount=category.weekly_amount,
                 status="Esperando",
             ))
+    db.flush()
+    refresh_cycle_metadata(month_code, current_user, db)
+    db.commit()
+
+
+def create_manual_cycle(month_code: str, direction: str, current_user: models.User, db: Session) -> None:
+    generate_monthly_weeks(month_code, current_user, db)
+    categories = get_weekly_categories(current_user, db)
+    expenses = (
+        db.query(models.WeeklyExpense)
+        .filter(
+            models.WeeklyExpense.month_code == month_code,
+            models.WeeklyExpense.user_id == current_user.id,
+            models.WeeklyExpense.recharge_date.is_not(None),
+            models.WeeklyExpense.is_excluded_cycle.is_(False),
+        )
+        .all()
+    )
+    if not categories or not expenses:
+        raise ValueError("Configura al menos una categoría semanal antes de añadir una semana")
+
+    boundary_date = min(expense.recharge_date for expense in expenses) if direction == "before" else max(expense.recharge_date for expense in expenses)
+    recharge_date = boundary_date - timedelta(days=7) if direction == "before" else boundary_date + timedelta(days=7)
+    if any(expense.recharge_date == recharge_date for expense in expenses):
+        raise ValueError("Esa semana ya existe")
+
+    for category in categories:
+        db.add(models.WeeklyExpense(
+            user_id=current_user.id,
+            weekly_category_id=category.id,
+            month_code=month_code,
+            week_number=0,
+            recharge_date=recharge_date,
+            week_date_label="",
+            category_name=category.name,
+            allocated_amount=category.weekly_amount,
+            status="Esperando",
+            is_manual_cycle=True,
+        ))
+    db.flush()
+    refresh_cycle_metadata(month_code, current_user, db)
+    db.commit()
+
+
+def remove_boundary_cycle(month_code: str, direction: str, current_user: models.User, db: Session) -> None:
+    """Oculta el primer o último ciclo sin permitir que se regenere automáticamente."""
+    generate_monthly_weeks(month_code, current_user, db)
+    expenses = (
+        db.query(models.WeeklyExpense)
+        .filter(
+            models.WeeklyExpense.month_code == month_code,
+            models.WeeklyExpense.user_id == current_user.id,
+            models.WeeklyExpense.recharge_date.is_not(None),
+            models.WeeklyExpense.is_excluded_cycle.is_(False),
+        )
+        .all()
+    )
+    cycle_dates = sorted({expense.recharge_date for expense in expenses})
+    if len(cycle_dates) <= 1:
+        raise ValueError("Debe quedar al menos una semana en el mes")
+
+    boundary_date = cycle_dates[0] if direction == "before" else cycle_dates[-1]
+    for expense in expenses:
+        if expense.recharge_date == boundary_date:
+            expense.is_excluded_cycle = True
+
+    db.flush()
+    refresh_cycle_metadata(month_code, current_user, db)
     db.commit()
 
 
@@ -142,6 +236,7 @@ def get_weekly_expenses(month_code: str, current_user: models.User, db: Session)
         .filter(
             models.WeeklyExpense.month_code == month_code,
             models.WeeklyExpense.user_id == current_user.id,
+            models.WeeklyExpense.is_excluded_cycle.is_(False),
         )
         .order_by(models.WeeklyExpense.recharge_date, models.WeeklyExpense.week_number, models.WeeklyExpense.id)
         .all()
