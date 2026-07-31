@@ -141,13 +141,10 @@ def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_
 def get_budget_summary(month_code: str, db: Session = Depends(get_db),
                        current_user: models.User = Depends(security.get_current_user)):
     """Obtiene el resumen detallado del presupuesto para un mes (ej. '2026-07')"""
-    # 1. Obtener o crear el presupuesto del mes
+    # 1. Un presupuesto solo existe cuando el usuario lo ha creado explícitamente.
     budget = db.query(models.MonthlyBudget).filter(models.MonthlyBudget.month_code == month_code, models.MonthlyBudget.user_id == current_user.id).first()
     if not budget:
-        budget = models.MonthlyBudget(user_id=current_user.id, month_code=month_code, expected_income=0.0)
-        db.add(budget)
-        db.commit()
-        db.refresh(budget)
+        raise HTTPException(status_code=404, detail="El presupuesto de este mes todavía no está creado")
 
     # 2. Cargar todas las categorías
     categories = db.query(models.Category).all()
@@ -155,14 +152,16 @@ def get_budget_summary(month_code: str, db: Session = Depends(get_db),
 
     fixed_planned_by_category = {}
     fixed_expenses = (
-        db.query(models.FixedExpense)
+        db.query(models.FixedExpenseMonth, models.FixedExpense)
+        .join(models.FixedExpense)
         .filter(models.FixedExpense.user_id == current_user.id, models.FixedExpense.is_active.is_(True))
+        .filter(models.FixedExpenseMonth.month_code == month_code)
         .all()
     )
-    for expense in fixed_expenses:
+    for monthly_expense, expense in fixed_expenses:
         if expense.category_id:
             fixed_planned_by_category[expense.category_id] = (
-                fixed_planned_by_category.get(expense.category_id, 0.0) + expense.amount
+                fixed_planned_by_category.get(expense.category_id, 0.0) + monthly_expense.amount
             )
 
     for category_id, fixed_total in fixed_planned_by_category.items():
@@ -242,6 +241,7 @@ def set_expected_income(data: schemas.BudgetSetIncome, db: Session = Depends(get
         db.add(budget)
     else:
         budget.expected_income = data.expected_income
+        budget.is_created = True
     db.commit()
     return {"status": "ok"}
 
@@ -270,6 +270,8 @@ def set_budget_item(data: schemas.BudgetItemCreate, month_code: str, db: Session
             planned_amount=data.planned_amount
         )
         db.add(item)
+
+    budget.is_created = True
 
     db.commit()
     return {"status": "ok"}

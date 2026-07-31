@@ -73,6 +73,10 @@ class BudgetCloneRequest(BaseModel):
     to_month: str    # Ej: "2026-07"
 
 
+class BudgetInitializeRequest(BaseModel):
+    month_code: str = Field(pattern=r"^\d{4}-\d{2}$")
+
+
 # Transactions
 class TransactionCreate(BaseModel):
     concept: str
@@ -132,6 +136,10 @@ class WeeklyExpenseResponse(WeeklyExpenseBase):
 
     class Config:
         from_attributes = True
+
+
+class WeeklyManualCycleCreate(BaseModel):
+    direction: str = Field(pattern="^(before|after)$")
 
 
 class UserUpdate(BaseModel):

@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Date, Integer, String, Float, ForeignKey, DateTime, UniqueConstraint
+from sqlalchemy import Boolean, Column, Date, Integer, String, Float, ForeignKey, DateTime, UniqueConstraint, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database import Base
@@ -26,11 +26,15 @@ class Category(Base):
 
 class MonthlyBudget(Base):
     __tablename__ = "monthly_budgets"
+    __table_args__ = (UniqueConstraint("user_id", "month_code", name="uq_monthly_budget_user_month"),)
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     month_code = Column(String, nullable=False, index=True)  # Formato: "YYYY-MM" (ej. "2026-07")
     expected_income = Column(Float, default=0.0)
+    is_closed = Column(Boolean, default=False, nullable=False)
+    is_created = Column(Boolean, default=False, nullable=False)
+    closed_at = Column(DateTime, nullable=True)
 
     items = relationship("BudgetItem", back_populates="monthly_budget", cascade="all, delete-orphan")
     user = relationship("User")
@@ -46,6 +50,17 @@ class BudgetItem(Base):
 
     monthly_budget = relationship("MonthlyBudget", back_populates="items")
     category = relationship("Category")
+
+
+class MonthlyBudgetSnapshot(Base):
+    __tablename__ = "monthly_budget_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    monthly_budget_id = Column(Integer, ForeignKey("monthly_budgets.id"), nullable=False, index=True)
+    month_code = Column(String, nullable=False, index=True)
+    saved_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    state = Column(JSON, nullable=False)
 
 
 class Transaction(Base):
@@ -75,6 +90,8 @@ class WeeklyExpense(Base):
     week_number = Column(Integer)  # 1, 2, 3, 4, 5
     week_date_label = Column(String)  # Ej: "Viernes 03 Julio"
     recharge_date = Column(Date, nullable=True, index=True)
+    is_manual_cycle = Column(Boolean, nullable=False, default=False)
+    is_excluded_cycle = Column(Boolean, nullable=False, default=False)
     category_name = Column(String)  # Gasolina, Supermercado, Ocio
     allocated_amount = Column(Float, default=0.0)  # Presupuestado
     status = Column(String, default="Esperando")  # Pagado, Parado, Esperando
@@ -109,6 +126,7 @@ class FixedExpense(Base):
     end_date = Column(Date, nullable=True)
     installments_total = Column(Integer, nullable=True)
     installments_paid = Column(Integer, default=0, nullable=False)
+    starts_month = Column(String, nullable=False, default="")
     is_active = Column(Boolean, default=True, nullable=False)
 
     user = relationship("User")
