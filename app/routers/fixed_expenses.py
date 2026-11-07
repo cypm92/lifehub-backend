@@ -182,6 +182,10 @@ def get_fixed_expenses(
     current_user: models.User = Depends(security.get_current_user),
 ):
     parse_month(month_code)
+    # Un mes puede haberse creado antes de añadir un gasto recurrente. Al abrir
+    # su listado completamos exclusivamente las entradas que faltan para que
+    # todos los gastos activos desde su mes de inicio estén representados.
+    ensure_month_entries(month_code, current_user, db)
     entries = (
         db.query(models.FixedExpenseMonth)
         .join(models.FixedExpense)
@@ -269,6 +273,24 @@ def update_fixed_expense(
         for field in {"concept", "amount", "description", "due_day"}.intersection(changes):
             setattr(entry, field, getattr(expense, field))
 
+    # Las ediciones de un gasto recurrente son la nueva configuración para los
+    # próximos meses. Conservamos intactos los meses ya pagados para que el
+    # histórico refleje lo que realmente ocurrió en cada uno de ellos.
+    recurring_fields = {"concept", "amount", "description", "due_day"}.intersection(changes)
+    if recurring_fields:
+        future_entries = (
+            db.query(models.FixedExpenseMonth)
+            .filter(
+                models.FixedExpenseMonth.fixed_expense_id == expense.id,
+                models.FixedExpenseMonth.month_code > month_code,
+                models.FixedExpenseMonth.status != "Pagado",
+            )
+            .all()
+        )
+        for future_entry in future_entries:
+            for field in recurring_fields:
+                setattr(future_entry, field, getattr(expense, field))
+
     db.commit()
     if not entry:
         ensure_month_entries(month_code, current_user, db)
@@ -305,7 +327,7 @@ def update_monthly_status(
         if expense.installments_total is not None:
             expense.installments_paid = min(expense.installments_paid + 1, expense.installments_total)
             entry.counted_installment = True
-    elif data.status == "Esperando" and entry.status == "Pagado" and entry.counted_installment:
+    elif data.status != "Pagado" and entry.status == "Pagado" and entry.counted_installment:
         expense.installments_paid = max(expense.installments_paid - 1, 0)
         entry.counted_installment = False
 

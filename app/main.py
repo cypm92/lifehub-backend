@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas, security
 from app.database import SessionLocal, engine, Base, ensure_schema_compatibility, get_db
 from app.init_db import init_db
-from app.routers import budgets, fixed_expenses, extra_expenses, savings
+from app.routers import budgets, fixed_expenses, extra_expenses, savings, vehicles
 # Crear tablas en la base de datos si no existen
 Base.metadata.create_all(bind=engine)
 ensure_schema_compatibility()
@@ -53,6 +53,7 @@ app.include_router(fixed_expenses.groups_router)
 app.include_router(extra_expenses.router)
 app.include_router(extra_expenses.categories_router)
 app.include_router(savings.router)
+app.include_router(vehicles.router)
 
 # ---------------------------------------------------------
 # AUTH ENDPOINTS
@@ -156,6 +157,7 @@ def get_budget_summary(month_code: str, db: Session = Depends(get_db),
         .join(models.FixedExpense)
         .filter(models.FixedExpense.user_id == current_user.id, models.FixedExpense.is_active.is_(True))
         .filter(models.FixedExpenseMonth.month_code == month_code)
+        .filter(models.FixedExpenseMonth.status != "Parado")
         .all()
     )
     for monthly_expense, expense in fixed_expenses:

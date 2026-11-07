@@ -36,6 +36,8 @@ def ensure_schema_compatibility() -> None:
         add_column_if_missing("monthly_budgets", "is_closed", "BOOLEAN NOT NULL DEFAULT FALSE")
         add_column_if_missing("monthly_budgets", "is_created", "BOOLEAN NOT NULL DEFAULT FALSE")
         add_column_if_missing("monthly_budgets", "closed_at", "TIMESTAMP")
+        add_column_if_missing("savings_sources", "loan_direction", "VARCHAR")
+        add_column_if_missing("savings_sources", "loan_total", "FLOAT")
         connection.execute(text("UPDATE monthly_budgets SET user_id = (SELECT MIN(id) FROM users) WHERE user_id IS NULL"))
         connection.execute(text("""
             UPDATE fixed_expenses AS fixed

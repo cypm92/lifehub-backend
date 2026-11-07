@@ -77,6 +77,85 @@ class BudgetInitializeRequest(BaseModel):
     month_code: str = Field(pattern=r"^\d{4}-\d{2}$")
 
 
+class VehicleBase(BaseModel):
+    brand: str = Field(min_length=1, max_length=80)
+    model: str = Field(min_length=1, max_length=100)
+    license_plate: str = Field(min_length=1, max_length=20)
+    year: Optional[int] = Field(default=None, ge=1900, le=2100)
+    fuel_type: Optional[str] = Field(default=None, max_length=40)
+    current_km: int = Field(default=0, ge=0)
+    vin: Optional[str] = Field(default=None, max_length=40)
+    insurance_expiry: Optional[date] = None
+    itv_expiry: Optional[date] = None
+    notes: str = Field(default="", max_length=1000)
+
+
+class VehicleCreate(VehicleBase):
+    pass
+
+
+class VehicleUpdate(VehicleBase):
+    pass
+
+
+class VehicleResponse(VehicleBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class VehicleExpenseBase(BaseModel):
+    category: str = Field(default="Taller", max_length=60)
+    description: str = Field(min_length=1, max_length=200)
+    amount: float = Field(gt=0)
+    expense_date: date
+    mileage: Optional[int] = Field(default=None, ge=0)
+    workshop: Optional[str] = Field(default=None, max_length=120)
+    notes: str = Field(default="", max_length=1000)
+
+
+class VehicleExpenseCreate(VehicleExpenseBase):
+    pass
+
+
+class VehicleExpenseUpdate(VehicleExpenseBase):
+    vehicle_id: Optional[int] = None
+
+
+class VehicleExpenseResponse(VehicleExpenseBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class VehicleMaintenanceBase(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    description: str = Field(default="", max_length=500)
+    completed_date: Optional[date] = None
+    completed_km: Optional[int] = Field(default=None, ge=0)
+    next_date: Optional[date] = None
+    next_km: Optional[int] = Field(default=None, ge=0)
+    cost: Optional[float] = Field(default=None, ge=0)
+    workshop: Optional[str] = Field(default=None, max_length=120)
+    notes: str = Field(default="", max_length=1000)
+
+
+class VehicleMaintenanceCreate(VehicleMaintenanceBase):
+    pass
+
+
+class VehicleMaintenanceResponse(VehicleMaintenanceBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # Transactions
 class TransactionCreate(BaseModel):
     concept: str
@@ -191,7 +270,7 @@ class FixedExpenseUpdate(BaseModel):
 
 
 class FixedExpenseMonthUpdate(BaseModel):
-    status: str = Field(pattern="^(Esperando|Pagado)$")
+    status: str = Field(pattern="^(Esperando|Pagado|Parado)$")
 
 
 class FixedExpenseMonthResponse(BaseModel):
@@ -283,9 +362,26 @@ class SavingsSourceCreate(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     source_type: str = Field(default="Banco", max_length=40)
     balance: float = Field(default=0, ge=0)
+    loan_direction: Optional[str] = Field(default=None, pattern="^(Recibido|Concedido)?$")
+    loan_total: Optional[float] = Field(default=None, ge=0)
 
 
 class SavingsSourceResponse(SavingsSourceCreate):
+    id: int
+    loan_paid: float = 0
+    loan_remaining: float = 0
+
+    class Config:
+        from_attributes = True
+
+
+class FamilyLoanPaymentCreate(BaseModel):
+    amount: float = Field(gt=0)
+    payment_date: date
+    note: str = Field(default="", max_length=300)
+
+
+class FamilyLoanPaymentResponse(FamilyLoanPaymentCreate):
     id: int
 
     class Config:
