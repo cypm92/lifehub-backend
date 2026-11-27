@@ -18,6 +18,7 @@ from app.config import settings
 from app.database import get_db
 from app.services.banking import EnableBanking
 from app.services.banking_sync import coverage, sync_connection
+from app.services.banking_movements import list_movements
 
 router = APIRouter(prefix="/banks", tags=["banks"])
 
@@ -292,6 +293,14 @@ def transactions(account_id: int, offset: int = Query(default=0, ge=0), limit: i
                 "destination_id": assignment.destination_id}
     return {"total": total, "transactions": [{"id": tx.id, "account_id": tx.account_id,
                                                 "raw_data": tx.raw_data, "assignment": public_assignment(tx)} for tx in rows]}
+
+
+@router.get("/movements")
+def movements(connection_id: int | None = Query(default=None, gt=0), days: int = Query(default=90, ge=1, le=90),
+              db: Session = Depends(get_db), user: models.User = Depends(security.get_current_user)):
+    if connection_id is not None:
+        owned_connection(db, user.id, connection_id)
+    return list_movements(db, user.id, connection_id, days)
 
 
 @router.get("/coverage")
