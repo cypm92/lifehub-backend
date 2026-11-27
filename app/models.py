@@ -63,6 +63,63 @@ class MonthlyBudgetSnapshot(Base):
     state = Column(JSON, nullable=False)
 
 
+class Vehicle(Base):
+    __tablename__ = "vehicles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    brand = Column(String, nullable=False)
+    model = Column(String, nullable=False)
+    license_plate = Column(String, nullable=False)
+    year = Column(Integer, nullable=True)
+    fuel_type = Column(String, nullable=True)
+    current_km = Column(Integer, default=0, nullable=False)
+    vin = Column(String, nullable=True)
+    insurance_expiry = Column(Date, nullable=True)
+    itv_expiry = Column(Date, nullable=True)
+    notes = Column(String, default="", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    expenses = relationship("VehicleExpense", back_populates="vehicle", cascade="all, delete-orphan")
+    maintenance_records = relationship("VehicleMaintenance", back_populates="vehicle", cascade="all, delete-orphan")
+
+
+class VehicleExpense(Base):
+    __tablename__ = "vehicle_expenses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=False, index=True)
+    category = Column(String, nullable=False, default="Taller")
+    description = Column(String, nullable=False)
+    amount = Column(Float, nullable=False)
+    expense_date = Column(Date, nullable=False)
+    mileage = Column(Integer, nullable=True)
+    workshop = Column(String, nullable=True)
+    notes = Column(String, default="", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    vehicle = relationship("Vehicle", back_populates="expenses")
+
+
+class VehicleMaintenance(Base):
+    __tablename__ = "vehicle_maintenance"
+
+    id = Column(Integer, primary_key=True, index=True)
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=False, index=True)
+    title = Column(String, nullable=False)
+    description = Column(String, default="", nullable=False)
+    completed_date = Column(Date, nullable=True)
+    completed_km = Column(Integer, nullable=True)
+    next_date = Column(Date, nullable=True)
+    next_km = Column(Integer, nullable=True)
+    cost = Column(Float, nullable=True)
+    workshop = Column(String, nullable=True)
+    notes = Column(String, default="", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    vehicle = relationship("Vehicle", back_populates="maintenance_records")
+
+
 class Transaction(Base):
     __tablename__ = "transactions"
 
@@ -205,5 +262,21 @@ class SavingsSource(Base):
     name = Column(String, nullable=False)
     source_type = Column(String, default="Banco", nullable=False)
     balance = Column(Float, default=0.0, nullable=False)
+    loan_direction = Column(String, nullable=True)
+    loan_total = Column(Float, nullable=True)
 
     user = relationship("User")
+    loan_payments = relationship("FamilyLoanPayment", back_populates="source", cascade="all, delete-orphan")
+
+
+class FamilyLoanPayment(Base):
+    __tablename__ = "family_loan_payments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    savings_source_id = Column(Integer, ForeignKey("savings_sources.id"), nullable=False, index=True)
+    amount = Column(Float, nullable=False)
+    payment_date = Column(Date, nullable=False)
+    note = Column(String, default="", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    source = relationship("SavingsSource", back_populates="loan_payments")

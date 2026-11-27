@@ -13,9 +13,13 @@ sqlalchemy = "^2.0.51"
 psycopg2-binary = "^2.9.12"
 passlib = {extras = ["bcrypt"], version = "^1.7.4"}
 pyjwt = "^2.13.0"
+cryptography = "^46.0.0"
 bcrypt = "^5.0.0"
 email-validator = "^2.3.0"
 pydantic-settings = "^2.12.0"
+
+[tool.poetry.group.dev.dependencies]
+httpx = "^0.28.0"
 
 [build-system]
 requires = ["poetry-core"]

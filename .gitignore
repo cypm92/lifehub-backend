@@ -7,4 +7,12 @@ venv/
 .vscode/
 *.log
 .env
+.env.*
+!.env.example
 postgres_data/
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+*.pk8
