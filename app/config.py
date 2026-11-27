@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     admin_email: str = "admin@lifehub.com"
     admin_password: str = "admin123"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    enable_banking_app_id: str = ""
+    enable_banking_key_path: str = ""
+    enable_banking_redirect_url: str = ""
+    enable_banking_encryption_key: str = ""
 
     @property
     def cors_origins_list(self) -> list[str]:

@@ -2,4 +2,11 @@
 __pycache__
 *.py[cod]
 .env
+.env.*
+secrets
+*.pem
+*.key
+*.p12
+*.pfx
+*.pk8
 .git

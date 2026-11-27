@@ -6,8 +6,9 @@ from sqlalchemy.orm import Session
 
 from app import models, schemas, security
 from app.database import SessionLocal, engine, Base, ensure_schema_compatibility, get_db
+from app.config import settings
 from app.init_db import init_db
-from app.routers import budgets, fixed_expenses, extra_expenses, savings, vehicles
+from app.routers import budgets, fixed_expenses, extra_expenses, savings, vehicles, banking, banking_assignments
 # Crear tablas en la base de datos si no existen
 Base.metadata.create_all(bind=engine)
 ensure_schema_compatibility()
@@ -36,7 +37,7 @@ app = FastAPI(
 # Permitir peticiones desde el Frontend Vue
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -54,6 +55,8 @@ app.include_router(extra_expenses.router)
 app.include_router(extra_expenses.categories_router)
 app.include_router(savings.router)
 app.include_router(vehicles.router)
+app.include_router(banking.router)
+app.include_router(banking_assignments.router)
 
 # ---------------------------------------------------------
 # AUTH ENDPOINTS
